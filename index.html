@@ -197,26 +197,27 @@
     .stats{grid-template-columns:repeat(2,1fr);}
   }
 
-  /* ===== طباعة / تصدير PDF ===== */
-  #printRoot{display:none;}
-  .print-page{direction:rtl;font-family:'Cairo',sans-serif;padding:6px;}
-  .print-page h1{text-align:center;color:#1F4E79;margin:0 0 4px;font-size:20px;font-weight:800;}
-  .print-page h2{text-align:center;margin:0 0 4px;font-size:15px;color:#1F4E79;font-weight:700;}
-  .print-page p{text-align:center;margin:0 0 14px;font-size:11.5px;color:#444;}
-  .print-table{width:100%;border-collapse:collapse;font-size:10px;}
-  .print-table th, .print-table td{border:1px solid #999;padding:4px 3px;text-align:center;}
-  .print-table thead{display:table-header-group;}
+  /* ===== تصدير PDF (توليد حقيقي، يعمل على الموبايل والكمبيوتر) ===== */
+  #pdfRenderRoot{
+    position:fixed;
+    top:0;
+    left:-10000px;
+    z-index:-1;
+    background:#fff;
+  }
+  .print-page{direction:rtl;font-family:'Cairo',sans-serif;padding:16px;background:#fff;}
+  .print-page h1{text-align:center;color:#1F4E79;margin:0 0 6px;font-size:26px;font-weight:800;}
+  .print-page h2{text-align:center;margin:0 0 6px;font-size:19px;color:#1F4E79;font-weight:700;}
+  .print-page h2.accent{color:#C0392B;}
+  .print-page .start-time{text-align:center;margin:0 0 16px;font-size:17px;font-weight:800;color:#1F7A2E;}
+  .print-page p.meta{text-align:center;margin:0 0 16px;font-size:13px;color:#444;}
+  .print-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .print-table th, .print-table td{border:1px solid #999;padding:8px 6px;text-align:center;}
   .print-table thead th{background:#1F4E79;color:#fff;}
   .print-table td.name-cell{text-align:right;font-weight:600;}
   .print-table td.st-present{background:#E6F4E8;color:#1F7A2E;font-weight:700;}
   .print-table td.st-absent{background:#FBEAE8;color:#C0392B;font-weight:700;}
   .print-table td.st-late{background:#FCF1DD;color:#B9770E;font-weight:700;}
-
-  @media print{
-    @page{ size: landscape; margin: 10mm; }
-    body.printing .wrap, body.printing header.top, body.printing .toast{ display:none !important; }
-    body.printing #printRoot{ display:block !important; }
-  }
 </style>
 </head>
 <body>
@@ -233,8 +234,10 @@
 
 <div id="modalRoot"></div>
 <div class="toast" id="toast"></div>
-<div id="printRoot"></div>
+<div id="pdfRenderRoot"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 /* ============ طبقة تخزين محلية (تعمل بدون إنترنت وبدون الحاجة لبيئة Claude) ============ */
 (function(){
@@ -1689,7 +1692,47 @@ function markAllPresent(groupId){
   );
 }
 
-/* ============ تصدير PDF (عبر نافذة الطباعة) ============ */
+/* ============ محرك توليد PDF حقيقي (يعمل على الموبايل والكمبيوتر) ============ */
+async function generatePdfFromHtml(innerHtml, filename, orientation){
+  const root = document.getElementById('pdfRenderRoot');
+  root.style.width = orientation === 'landscape' ? '1400px' : '900px';
+  root.innerHTML = innerHtml;
+
+  showToast('جاري تجهيز ملف PDF...');
+  await new Promise(r=>setTimeout(r, 80)); // مهلة بسيطة لرسم العناصر قبل الالتقاط
+
+  try{
+    const canvas = await html2canvas(root, { scale: 2, backgroundColor:'#ffffff', useCORS:true });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation, unit:'mm', format:'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while(heightLeft > 0){
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    pdf.save(filename);
+    showToast('تم إنشاء ملف PDF بنجاح');
+  }catch(e){
+    showToast('تعذر إنشاء PDF، تأكد من الاتصال بالإنترنت (يُحمّل أول مرة فقط)');
+  }finally{
+    root.innerHTML = '';
+  }
+}
+
+/* ============ تصدير 1: سجل الحضور والغياب (PDF) ============ */
 function exportGroupPDF(groupId){
   const group = groupById(groupId);
   const students = studentsInGroup(groupId);
@@ -1709,25 +1752,43 @@ function exportGroupPDF(groupId){
     return `<tr><td>${i+1}</td><td class="name-cell">${s.name}</td><td>${s.dept}</td><td>${s.grade}</td>${cells}</tr>`;
   }).join('');
 
-  const printRoot = document.getElementById('printRoot');
-  printRoot.innerHTML = `
+  const html = `
     <div class="print-page">
       <h1>إعدادية الحبانية المهنية</h1>
       <h2>سجل الحضور والغياب — المجموعة ${group.letter}</h2>
-      <p>التاريخ: ${date} &nbsp;|&nbsp; وقت بدء المجموعة: ${group.startTime} &nbsp;|&nbsp; عدد الطلاب: ${students.length}</p>
+      <p class="meta">التاريخ: ${date} &nbsp;|&nbsp; وقت بدء المجموعة: ${group.startTime} &nbsp;|&nbsp; عدد الطلاب: ${students.length}</p>
       <table class="print-table">
         <thead><tr>${theadCols}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
-  document.body.classList.add('printing');
-  window.print();
+
+  generatePdfFromHtml(html, `حضور_مجموعة_${group.letter}_${date}.pdf`, 'landscape');
 }
-window.addEventListener('afterprint', ()=>{
-  document.body.classList.remove('printing');
-  const pr = document.getElementById('printRoot');
-  if(pr) pr.innerHTML = '';
-});
+
+/* ============ تصدير 2: جدول التوقيتات (للإرسال إلى الطلاب) ============ */
+function exportGroupSchedule(groupId){
+  const group = groupById(groupId);
+  const students = studentsInGroup(groupId);
+
+  const rows = students.map((s,i)=>
+    `<tr><td>${i+1}</td><td class="name-cell">${s.name}</td><td>${s.dept}</td></tr>`
+  ).join('');
+
+  const html = `
+    <div class="print-page">
+      <h1>إعدادية الحبانية المهنية</h1>
+      <h2>التدريب الصيفي للطلاب — جدول التوقيتات</h2>
+      <h2 class="accent">المجموعة ( ${group.letter} )</h2>
+      <p class="start-time">تبدأ المحاضرة الساعة ${group.startTime}</p>
+      <table class="print-table">
+        <thead><tr><th>ت</th><th>اسم الطالب</th><th>القسم</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  generatePdfFromHtml(html, `جدول_توقيت_مجموعة_${group.letter}.pdf`, 'portrait');
+}
 
 /* ============ الرسم (Render) ============ */
 function renderStats(){
@@ -1800,6 +1861,7 @@ async function renderContent(){
         <button class="btn btn-primary" id="btnAddStudent">+ إضافة طالب لهذه المجموعة</button>
         <button class="btn btn-outline" id="btnMarkAll">✔ تسجيل حضور جميع الطلاب</button>
         <button class="btn btn-outline" id="btnExportPdf">🖨 تصدير PDF (حضور وغياب)</button>
+        <button class="btn btn-outline" id="btnExportSchedule">📋 تصدير جدول التوقيت للطلاب</button>
       </div>
 
       <div class="att-controls">
@@ -1833,6 +1895,7 @@ async function renderContent(){
   document.getElementById('btnAddStudent').onclick = ()=>openAddStudentModal(group.id);
   document.getElementById('btnMarkAll').onclick = ()=>markAllPresent(group.id);
   document.getElementById('btnExportPdf').onclick = ()=>exportGroupPDF(group.id);
+  document.getElementById('btnExportSchedule').onclick = ()=>exportGroupSchedule(group.id);
   document.getElementById('attDateInput').onchange = async (e)=>{
     state.attDate = e.target.value;
     await loadAttendance(state.attDate);

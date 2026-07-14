@@ -1,5 +1,5 @@
 // Service Worker — يخزّن التطبيق محلياً على الجهاز ليعمل بدون إنترنت بعد أول فتح
-const CACHE_NAME = 'habbaniya-attendance-v1';
+const CACHE_NAME = 'habbaniya-attendance-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -9,10 +9,20 @@ const CORE_ASSETS = [
   './icons/apple-touch-icon.png',
   './icons/favicon-32.png'
 ];
+const OPTIONAL_ASSETS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS))
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await cache.addAll(CORE_ASSETS);
+      // الملفات الخارجية اختيارية: لا نفشل التثبيت إذا تعذر تحميلها الآن
+      await Promise.all(OPTIONAL_ASSETS.map((url) =>
+        cache.add(url).catch(() => {})
+      ));
+    })
   );
   self.skipWaiting();
 });
