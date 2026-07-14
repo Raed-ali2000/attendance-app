@@ -1,0 +1,27 @@
+{
+  "name": "إدارة حضور طلاب التدريب الصيفي - إعدادية الحبانية المهنية",
+  "short_name": "حضور الطلاب",
+  "description": "تطبيق إدارة المجموعات وتسجيل حضور وغياب طلاب التدريب الصيفي",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F5F7FA",
+  "theme_color": "#1F4E79",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,1876 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>إدارة طلاب التدريب الصيفي</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1F4E79">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="حضور الطلاب">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#1F4E79;
+    --navy-dark:#163a5c;
+    --navy-tint:#EAF1F8;
+    --green:#1F7A2E;
+    --green-tint:#E6F4E8;
+    --red:#C0392B;
+    --red-tint:#FBEAE8;
+    --amber:#B9770E;
+    --amber-tint:#FCF1DD;
+    --bg:#F5F7FA;
+    --card:#FFFFFF;
+    --border:#E2E8F0;
+    --text:#1E2733;
+    --text-dim:#5B6B7C;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Cairo',sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    direction:rtl;
+  }
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px;}
+  header.top{
+    background:linear-gradient(135deg,var(--navy),var(--navy-dark));
+    color:#fff;
+    border-radius:var(--radius);
+    padding:22px 26px;
+    margin-bottom:18px;
+    box-shadow:0 4px 14px rgba(31,78,121,0.25);
+  }
+  header.top h1{margin:0 0 4px;font-size:22px;font-weight:800;}
+  header.top p{margin:0;font-size:14px;opacity:0.85;}
+
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+    margin-bottom:20px;
+  }
+  .stat-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px 16px;
+    text-align:center;
+  }
+  .stat-card .num{font-size:26px;font-weight:800;color:var(--navy);}
+  .stat-card .label{font-size:12.5px;color:var(--text-dim);margin-top:2px;}
+
+  .tabs{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:16px;
+  }
+  .tab-btn{
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--text);
+    padding:9px 16px;
+    border-radius:999px;
+    font-family:'Cairo',sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    cursor:pointer;
+    transition:all .15s;
+  }
+  .tab-btn:hover{border-color:var(--navy);}
+  .tab-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .tab-count{opacity:.75;font-weight:500;font-size:12px;}
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .card h2{margin:0 0 4px;font-size:17px;font-weight:800;color:var(--navy);}
+  .card .sub{font-size:13px;color:var(--text-dim);margin-bottom:14px;}
+
+  .row-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .btn{
+    font-family:'Cairo',sans-serif;
+    font-weight:700;
+    font-size:13.5px;
+    border-radius:8px;
+    padding:9px 16px;
+    border:none;
+    cursor:pointer;
+    transition:opacity .15s, transform .1s;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--navy);color:#fff;}
+  .btn-primary:hover{opacity:.9;}
+  .btn-outline{background:#fff;border:1px solid var(--border);color:var(--text);}
+  .btn-outline:hover{border-color:var(--navy);color:var(--navy);}
+  .btn-danger{background:var(--red-tint);color:var(--red);}
+  .btn-danger:hover{opacity:.8;}
+  .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  thead th{
+    background:var(--navy);
+    color:#fff;
+    padding:10px 8px;
+    text-align:center;
+    font-weight:700;
+    font-size:13px;
+    position:sticky;top:0;
+  }
+  tbody td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--border);}
+  tbody tr:nth-child(even){background:var(--navy-tint);}
+  tbody td.name-cell{text-align:right;font-weight:600;}
+  .table-scroll{overflow-x:auto;max-height:520px;overflow-y:auto;border-radius:8px;}
+
+  .att-status-btns{display:flex;gap:5px;justify-content:center;}
+  .status-btn{
+    border:1px solid var(--border);
+    background:#fff;
+    font-family:'Cairo',sans-serif;
+    font-size:11.5px;
+    font-weight:700;
+    padding:5px 9px;
+    border-radius:6px;
+    cursor:pointer;
+    color:var(--text-dim);
+  }
+  .status-btn.present.on{background:var(--green);color:#fff;border-color:var(--green);}
+  .status-btn.absent.on{background:var(--red);color:#fff;border-color:var(--red);}
+  .status-btn.late.on{background:var(--amber);color:#fff;border-color:var(--amber);}
+  .status-btn:hover{filter:brightness(0.97);}
+
+  .att-controls{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:14px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:12px;font-weight:700;color:var(--text-dim);}
+  .field input, .field select{
+    font-family:'Cairo',sans-serif;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:13.5px;
+    background:#fff;
+    color:var(--text);
+  }
+
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,30,45,0.55);
+    display:flex;align-items:center;justify-content:center;z-index:50;
+    padding:16px;
+  }
+  .modal{
+    background:#fff;border-radius:14px;padding:22px;width:100%;max-width:420px;
+    box-shadow:0 10px 40px rgba(0,0,0,0.25);
+  }
+  .modal h3{margin:0 0 14px;font-size:16px;font-weight:800;color:var(--navy);}
+  .modal .field{margin-bottom:12px;}
+  .modal .field input, .modal .field select{width:100%;}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+
+  .empty{text-align:center;color:var(--text-dim);padding:26px;font-size:13.5px;}
+  .toast{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+    background:var(--navy-dark);color:#fff;padding:10px 20px;border-radius:999px;
+    font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,0.25);
+    z-index:60; opacity:0; transition:opacity .25s;
+  }
+  .toast.show{opacity:1;}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--text-dim);margin-bottom:10px;flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  @media (max-width:640px){
+    .stats{grid-template-columns:repeat(2,1fr);}
+  }
+
+  /* ===== طباعة / تصدير PDF ===== */
+  #printRoot{display:none;}
+  .print-page{direction:rtl;font-family:'Cairo',sans-serif;padding:6px;}
+  .print-page h1{text-align:center;color:#1F4E79;margin:0 0 4px;font-size:20px;font-weight:800;}
+  .print-page h2{text-align:center;margin:0 0 4px;font-size:15px;color:#1F4E79;font-weight:700;}
+  .print-page p{text-align:center;margin:0 0 14px;font-size:11.5px;color:#444;}
+  .print-table{width:100%;border-collapse:collapse;font-size:10px;}
+  .print-table th, .print-table td{border:1px solid #999;padding:4px 3px;text-align:center;}
+  .print-table thead{display:table-header-group;}
+  .print-table thead th{background:#1F4E79;color:#fff;}
+  .print-table td.name-cell{text-align:right;font-weight:600;}
+  .print-table td.st-present{background:#E6F4E8;color:#1F7A2E;font-weight:700;}
+  .print-table td.st-absent{background:#FBEAE8;color:#C0392B;font-weight:700;}
+  .print-table td.st-late{background:#FCF1DD;color:#B9770E;font-weight:700;}
+
+  @media print{
+    @page{ size: landscape; margin: 10mm; }
+    body.printing .wrap, body.printing header.top, body.printing .toast{ display:none !important; }
+    body.printing #printRoot{ display:block !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>إعدادية الحبانية المهنية</h1>
+    <p>نظام إدارة طلاب التدريب الصيفي — المجموعات، الحضور، والغياب</p>
+  </header>
+
+  <div class="stats" id="stats"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="content"></div>
+</div>
+
+<div id="modalRoot"></div>
+<div class="toast" id="toast"></div>
+<div id="printRoot"></div>
+
+<script>
+/* ============ طبقة تخزين محلية (تعمل بدون إنترنت وبدون الحاجة لبيئة Claude) ============ */
+(function(){
+  const NS = 'habbaniya-attendance::';
+  window.storage = {
+    async get(key){
+      try{
+        const raw = localStorage.getItem(NS+key);
+        if(raw === null) return null;
+        return { key, value: raw, shared: false };
+      }catch(e){ return null; }
+    },
+    async set(key, value){
+      localStorage.setItem(NS+key, value);
+      return { key, value, shared: false };
+    },
+    async delete(key){
+      localStorage.removeItem(NS+key);
+      return { key, deleted: true, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(NS)){
+          const shortK = k.slice(NS.length);
+          if(!prefix || shortK.startsWith(prefix)) keys.push(shortK);
+        }
+      }
+      return { keys, prefix, shared: false };
+    }
+  };
+})();
+
+/* ============ بيانات أولية (Seed Data) ============ */
+const SEED_STUDENTS = [
+  {
+    "id": "s1",
+    "name": "احمد اسماعيل حامد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s2",
+    "name": "احمد ثامر اسماعيل رجب",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s3",
+    "name": "احمد خير الله جبار",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s4",
+    "name": "احمد عبد الستار عبد الجبار",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s5",
+    "name": "احمد علي احمد سليمان",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s6",
+    "name": "احمد ماجد فزع",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s7",
+    "name": "احمد ياسر احمد عبد الله",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s8",
+    "name": "امين عفات عوده",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s9",
+    "name": "انس عبد ابراهيم عبد الله",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s10",
+    "name": "ايوب حميد خليل",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s11",
+    "name": "حذيفة مجيد تركي",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s12",
+    "name": "حذيفه حامد محمد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s13",
+    "name": "خطاب عبود محي",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s14",
+    "name": "خطاب عمر عبد الله",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s15",
+    "name": "خطاب عمر محمود",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s16",
+    "name": "رواد كريم حامد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s17",
+    "name": "زيد اسعد احمد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s18",
+    "name": "سليم سعدي جاسم",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s19",
+    "name": "صلاح عبد علي",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s20",
+    "name": "عبد الله انور عبد الكريم",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s21",
+    "name": "عبد الله جمال عبد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s22",
+    "name": "عبد الله فراس محمد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s23",
+    "name": "عبد الله ياسر احمد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gA"
+  },
+  {
+    "id": "s24",
+    "name": "عثمان احمد عبيد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s25",
+    "name": "علاء عمر حايد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s26",
+    "name": "علي جمال عبد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s27",
+    "name": "علي سعدي ابراهيم عبد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s28",
+    "name": "علي علاء حسين محمد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s29",
+    "name": "علي محمد عبد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s30",
+    "name": "علي نقيب حسين",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s31",
+    "name": "عمار زياد خلف صباح",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s32",
+    "name": "عمار ياسر يوسف",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s33",
+    "name": "عمار يوسف احمد درج",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s34",
+    "name": "عمر احمد راشد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s35",
+    "name": "عمر جمال حميد عبد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s36",
+    "name": "عمر محمد امين",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s37",
+    "name": "فاضل زياد فاضل فتاح",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s38",
+    "name": "كرار احمد علاوي",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s39",
+    "name": "ماجد رائد خليفة",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s40",
+    "name": "محمد احمد حسن",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s41",
+    "name": "محمد نبيل محمد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s42",
+    "name": "مصطفى ثائر جمعه",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s43",
+    "name": "مصطفى عمار جاسم",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s44",
+    "name": "هشام محمد احمد فارس",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s45",
+    "name": "وليد خالد رياح",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s46",
+    "name": "ابراهيم احمد ابراهيم",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gB"
+  },
+  {
+    "id": "s47",
+    "name": "ابراهيم احمد ابراهيم",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s48",
+    "name": "احمد مصلح تركي",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s49",
+    "name": "انس عصام حمد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s50",
+    "name": "ثائر محمد عبد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s51",
+    "name": "حذيفه خليل ابراهيم",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s52",
+    "name": "حسام قيصر فيصل",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s53",
+    "name": "سامر محمد خلف",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s54",
+    "name": "سجاد وفراس اسماعيل",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s55",
+    "name": "صبري رزاق صالح",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s56",
+    "name": "طارق زياد علي",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s57",
+    "name": "عثمان معجل محمد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s58",
+    "name": "علي محمد اسماعيل",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s59",
+    "name": "محمد سمير عبد الحميد جاسم",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s60",
+    "name": "محمد عادل محمد",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s61",
+    "name": "مصطفى علي سليمان",
+    "dept": "حاسبات",
+    "grade": "الرابع",
+    "groupId": "gC"
+  },
+  {
+    "id": "s62",
+    "name": "ايهم عايد عطا الله",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gC"
+  },
+  {
+    "id": "s63",
+    "name": "ايوب مهند حسين",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gC"
+  },
+  {
+    "id": "s64",
+    "name": "حاتم خالد صبار محمد",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gC"
+  },
+  {
+    "id": "s65",
+    "name": "حارث مؤيد فرحان",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gC"
+  },
+  {
+    "id": "s66",
+    "name": "حارث نؤاس نعمان",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gC"
+  },
+  {
+    "id": "s67",
+    "name": "زايد ربيع زيد",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gC"
+  },
+  {
+    "id": "s68",
+    "name": "عبد الرحمن عبد الله جبار",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gC"
+  },
+  {
+    "id": "s69",
+    "name": "عبد الرحمن ماجد تايه شرتوح",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gC"
+  },
+  {
+    "id": "s70",
+    "name": "عثمان ناظم عاصي",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s71",
+    "name": "علي منصور مصلح حماد",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s72",
+    "name": "غيث ابراهيم عذاب",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s73",
+    "name": "مؤمن خميس حسين",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s74",
+    "name": "مبين منير صالح",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s75",
+    "name": "محمد علي شلال حماد",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s76",
+    "name": "محمد محمود دايح",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s77",
+    "name": "مروان فواز عمر محمد",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s78",
+    "name": "مصطفى اسماعيل حسين",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s79",
+    "name": "مصطفى خميس فرحان",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s80",
+    "name": "مصطفى مخلد خضير",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s81",
+    "name": "همام عادل سليمان",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s82",
+    "name": "يزن روام جهاد",
+    "dept": "حاسبات",
+    "grade": "الخامس",
+    "groupId": "gD"
+  },
+  {
+    "id": "s83",
+    "name": "ابراهيم سعد ابراهيم",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s84",
+    "name": "ابو بكر عمر هاشم",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s85",
+    "name": "احمد جبير كامل",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s86",
+    "name": "احمد حسين محمد عباس",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s87",
+    "name": "احمد فؤاد حميد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s88",
+    "name": "احمد قيس علي",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s89",
+    "name": "احمد واثق بداع",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s90",
+    "name": "اسامة مجيد حماد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s91",
+    "name": "بارق ثامر محمد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s92",
+    "name": "حسن هيثم جمعه عبد الله",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gD"
+  },
+  {
+    "id": "s93",
+    "name": "خالد عدنان جمعه",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s94",
+    "name": "خالد وليد عدنان",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s95",
+    "name": "خطاب عمر يوسف",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s96",
+    "name": "رائد اركان عبد الجليل",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s97",
+    "name": "زيد محمد شلال",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s98",
+    "name": "زيد مصطفى مخلف",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s99",
+    "name": "زيدون ناظم حسين",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s100",
+    "name": "زيدون نجاح زيدان",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s101",
+    "name": "سعدي وجدي سعدي",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s102",
+    "name": "سيف اسعد احمد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s103",
+    "name": "شاكر محمود حسين",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s104",
+    "name": "شهاب احمد منصور حسين",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s105",
+    "name": "عادل ناجي عبد الله",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s106",
+    "name": "عامر داوود سليمان",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s107",
+    "name": "عبد الرحمن عجيل احمد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s108",
+    "name": "عبد الرحمن محمود رجب",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s109",
+    "name": "عبد الكريم محمود رجب",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s110",
+    "name": "عبد الله عقيل خميس",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s111",
+    "name": "عبد الله ماجد عدنان",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s112",
+    "name": "عطيه عقيل عبد الله",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s113",
+    "name": "عمار عثمان محمد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s114",
+    "name": "عمر احمد عبيد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s115",
+    "name": "عمر عدي مجيد معجل",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gE"
+  },
+  {
+    "id": "s116",
+    "name": "عمر فوزي زبار",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s117",
+    "name": "عيسى محمد جمعه",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s118",
+    "name": "فكر عمر ناجي شبيب",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s119",
+    "name": "محمد حميد دلفي",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s120",
+    "name": "محمد علي محمد حسين",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s121",
+    "name": "محمد قحطان محمد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s122",
+    "name": "مصطفى عبد الكريم حامد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s123",
+    "name": "مصطفى محمد نهاد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s124",
+    "name": "مصطفى هيثم احمد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s125",
+    "name": "معتز صالح عبد الله",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s126",
+    "name": "معتز ضياء احمد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s127",
+    "name": "معد اياد عباس",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s128",
+    "name": "مهند سمير ناجي",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s129",
+    "name": "مهيمن احمد عبد السلام",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s130",
+    "name": "نديم منير ناجي",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s131",
+    "name": "وليد خالد عدنان",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s132",
+    "name": "ياسر جمعه حمد عبود",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s133",
+    "name": "يحيى شلال محمد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s134",
+    "name": "يحيى وحيد محمد عبيد",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s135",
+    "name": "يوسف ثامر اسماعيل رجب",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s136",
+    "name": "يوسف سعد عناد حسين",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s137",
+    "name": "يوسف مصطفى ويس",
+    "dept": "نفط",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s138",
+    "name": "احمد سلام حميد عبد",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gF"
+  },
+  {
+    "id": "s139",
+    "name": "ادهم عادل محمد",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s140",
+    "name": "انس جمال جياد حسين",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s141",
+    "name": "انس حسام نوري",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s142",
+    "name": "ايوب رياض كردي",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s143",
+    "name": "بكر صلاح حسن",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s144",
+    "name": "بكر عبد السلام زيدان خلف",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s145",
+    "name": "زيد الخير حسين علي",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s146",
+    "name": "سيف حسام عبد الله",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s147",
+    "name": "عبد الله محمد جاسم عويد",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s148",
+    "name": "عمر توفيق فزع حميد",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s149",
+    "name": "عمر حميد جوير",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s150",
+    "name": "عمر عدي شلال",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s151",
+    "name": "كمال جمال حماد",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s152",
+    "name": "محمد سمير عبد الحميد جاسم",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s153",
+    "name": "محمد عبد الله صالح جاسم",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s154",
+    "name": "محمود احمد فرج",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s155",
+    "name": "منيب فراس عبد",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s156",
+    "name": "يوسف مصطفى شلال",
+    "dept": "بناء",
+    "grade": "الرابع",
+    "groupId": "gG"
+  },
+  {
+    "id": "s157",
+    "name": "استبرق عبد الكريم مطر",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gG"
+  },
+  {
+    "id": "s158",
+    "name": "اسماعيل قيس اسماعيل",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gG"
+  },
+  {
+    "id": "s159",
+    "name": "انس حسين حمد عبود",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gG"
+  },
+  {
+    "id": "s160",
+    "name": "ثائر عادل جهاد",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gG"
+  },
+  {
+    "id": "s161",
+    "name": "حيدر جبار خلف",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gG"
+  },
+  {
+    "id": "s162",
+    "name": "حيدر مؤيد فرحان",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  },
+  {
+    "id": "s163",
+    "name": "خالد رواء رشاد",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  },
+  {
+    "id": "s164",
+    "name": "عبد القادر حامد خليل عبد",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  },
+  {
+    "id": "s165",
+    "name": "عبد الله رعد رشيد",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  },
+  {
+    "id": "s166",
+    "name": "عماد الدين خالد ياسين",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  },
+  {
+    "id": "s167",
+    "name": "محمد كاظم حميد هذال",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  },
+  {
+    "id": "s168",
+    "name": "محمد محمود دايح",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  },
+  {
+    "id": "s169",
+    "name": "مصطفى حميد لهيبي",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  },
+  {
+    "id": "s170",
+    "name": "مصطفى مؤيد عبد",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  },
+  {
+    "id": "s171",
+    "name": "مهند فراس جسام",
+    "dept": "بناء",
+    "grade": "الخامس",
+    "groupId": "gH"
+  }
+];
+const SEED_GROUPS = [
+  {
+    "id": "gA",
+    "letter": "A",
+    "startTime": "9:00 صباحاً"
+  },
+  {
+    "id": "gB",
+    "letter": "B",
+    "startTime": "9:20 صباحاً"
+  },
+  {
+    "id": "gC",
+    "letter": "C",
+    "startTime": "9:40 صباحاً"
+  },
+  {
+    "id": "gD",
+    "letter": "D",
+    "startTime": "10:00 صباحاً"
+  },
+  {
+    "id": "gE",
+    "letter": "E",
+    "startTime": "10:20 صباحاً"
+  },
+  {
+    "id": "gF",
+    "letter": "F",
+    "startTime": "10:40 صباحاً"
+  },
+  {
+    "id": "gG",
+    "letter": "G",
+    "startTime": "11:00 صباحاً"
+  },
+  {
+    "id": "gH",
+    "letter": "H",
+    "startTime": "11:20 صباحاً"
+  }
+];
+const LECTURES = ["الأولى","الثانية","الثالثة","الرابعة","الخامسة","السادسة","السابعة","الثامنة"];
+const DEPTS = ["حاسبات","نفط","بناء"];
+const GRADES = ["الرابع","الخامس"];
+
+/* ============ الحالة ============ */
+let state = {
+  students: [],
+  groups: [],
+  activeTab: null,
+  attDate: new Date().toISOString().slice(0,10),
+  attLecture: 1,
+  attCache: {} // { [date]: { [lecture]: { [studentId]: status } } }
+};
+
+/* ============ أدوات التخزين ============ */
+async function loadRoster(){
+  let needsSave = false;
+  try{
+    const res = await window.storage.get('roster-v1');
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      state.students = parsed.students || [];
+      state.groups = parsed.groups || [];
+    } else {
+      state.students = SEED_STUDENTS;
+      state.groups = SEED_GROUPS;
+      needsSave = true;
+    }
+  }catch(e){
+    state.students = SEED_STUDENTS;
+    state.groups = SEED_GROUPS;
+    needsSave = true;
+  }
+  // ترحيل: توحيد اسم القسم القديم "تجميع وصيانة الحاسوب" إلى "حاسبات"
+  state.students.forEach(s=>{
+    if(s.dept === 'تجميع وصيانة الحاسوب'){ s.dept = 'حاسبات'; needsSave = true; }
+  });
+  if(needsSave) await saveRoster();
+}
+async function saveRoster(){
+  try{
+    await window.storage.set('roster-v1', JSON.stringify({students: state.students, groups: state.groups}));
+  }catch(e){ showToast('تعذر الحفظ، حاول مرة أخرى'); }
+}
+async function loadAttendance(date){
+  if(state.attCache[date]) return state.attCache[date];
+  try{
+    const res = await window.storage.get('attendance:'+date);
+    if(res && res.value){
+      state.attCache[date] = JSON.parse(res.value);
+      return state.attCache[date];
+    }
+  }catch(e){ /* لا يوجد سجل بعد لهذا اليوم */ }
+  state.attCache[date] = {};
+  return state.attCache[date];
+}
+async function saveAttendance(date){
+  try{
+    await window.storage.set('attendance:'+date, JSON.stringify(state.attCache[date] || {}));
+  }catch(e){ showToast('تعذر حفظ الحضور'); }
+}
+
+/* ============ أدوات مساعدة ============ */
+function uid(){ return 's' + Math.random().toString(36).slice(2,10); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function studentsInGroup(groupId){
+  return state.students.filter(s => s.groupId === groupId);
+}
+function groupById(id){ return state.groups.find(g=>g.id===id); }
+
+function confirmModal(title, message, onConfirm){
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-overlay" id="ovConfirm">
+      <div class="modal">
+        <h3>${title}</h3>
+        <p style="font-size:13.5px;color:var(--text-dim);line-height:1.7;">${message}</p>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="cnCancel">إلغاء</button>
+          <button class="btn btn-danger" id="cnOk">تأكيد</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('cnCancel').onclick = ()=>{ root.innerHTML=''; };
+  document.getElementById('ovConfirm').onclick = (e)=>{ if(e.target.id==='ovConfirm') root.innerHTML=''; };
+  document.getElementById('cnOk').onclick = ()=>{ root.innerHTML=''; onConfirm(); };
+}
+
+/* ============ إضافة طالب ============ */
+function openAddStudentModal(defaultGroupId){
+  const root = document.getElementById('modalRoot');
+  const deptOptions = DEPTS.map(d=>`<option value="${d}">${d}</option>`).join('');
+  const gradeOptions = GRADES.map(g=>`<option value="${g}">${g}</option>`).join('');
+  const groupOptions = state.groups.map(g=>`<option value="${g.id}" ${g.id===defaultGroupId?'selected':''}>مجموعة ${g.letter} — ${g.startTime}</option>`).join('');
+  root.innerHTML = `
+    <div class="modal-overlay" id="ovAdd">
+      <div class="modal">
+        <h3>إضافة طالب جديد</h3>
+        <div class="field"><label>اسم الطالب</label><input id="fName" type="text" placeholder="الاسم الرباعي"></div>
+        <div class="field"><label>القسم</label><select id="fDept">${deptOptions}</select></div>
+        <div class="field"><label>الصف</label><select id="fGrade">${gradeOptions}</select></div>
+        <div class="field"><label>المجموعة</label><select id="fGroup">${groupOptions}</select></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="addCancel">إلغاء</button>
+          <button class="btn btn-primary" id="addOk">إضافة الطالب</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('addCancel').onclick = ()=>{ root.innerHTML=''; };
+  document.getElementById('ovAdd').onclick = (e)=>{ if(e.target.id==='ovAdd') root.innerHTML=''; };
+  document.getElementById('addOk').onclick = async ()=>{
+    const name = document.getElementById('fName').value.trim();
+    if(!name){ showToast('الرجاء إدخال اسم الطالب'); return; }
+    const dept = document.getElementById('fDept').value;
+    const grade = document.getElementById('fGrade').value;
+    const groupId = document.getElementById('fGroup').value;
+    state.students.push({ id: uid(), name, dept, grade, groupId });
+    await saveRoster();
+    root.innerHTML = '';
+    showToast('تمت إضافة الطالب بنجاح');
+    render();
+  };
+}
+
+/* ============ حذف طالب ============ */
+function deleteStudent(studentId){
+  const st = state.students.find(s=>s.id===studentId);
+  if(!st) return;
+  confirmModal('حذف طالب', `هل أنت متأكد من حذف الطالب <b>${st.name}</b>؟ لا يمكن التراجع عن هذه العملية.`, async ()=>{
+    state.students = state.students.filter(s=>s.id!==studentId);
+    await saveRoster();
+    showToast('تم حذف الطالب');
+    render();
+  });
+}
+
+/* ============ الحضور ============ */
+async function setAttendance(studentId, status){
+  const date = state.attDate, lec = state.attLecture;
+  const data = await loadAttendance(date);
+  if(!data[lec]) data[lec] = {};
+  if(data[lec][studentId] === status){
+    delete data[lec][studentId]; // إلغاء التحديد عند الضغط مرة أخرى
+  } else {
+    data[lec][studentId] = status;
+  }
+  state.attCache[date] = data;
+  await saveAttendance(date);
+  renderContent();
+  renderStats();
+}
+
+/* ============ تسجيل حضور جميع الطلاب ============ */
+function markAllPresent(groupId){
+  const group = groupById(groupId);
+  const lectureLabel = LECTURES[state.attLecture-1];
+  confirmModal(
+    'تسجيل حضور الجميع',
+    `سيتم تسجيل جميع طلاب مجموعة <b>${group.letter}</b> (${studentsInGroup(groupId).length} طالب) كـ <b>حاضر</b> في المحاضرة ${lectureLabel} بتاريخ ${state.attDate}. هل تريد المتابعة؟`,
+    async ()=>{
+      const date = state.attDate, lec = state.attLecture;
+      const data = await loadAttendance(date);
+      if(!data[lec]) data[lec] = {};
+      studentsInGroup(groupId).forEach(s=>{ data[lec][s.id] = 'حاضر'; });
+      state.attCache[date] = data;
+      await saveAttendance(date);
+      showToast('تم تسجيل حضور جميع الطلاب');
+      renderContent();
+      renderStats();
+    }
+  );
+}
+
+/* ============ تصدير PDF (عبر نافذة الطباعة) ============ */
+function exportGroupPDF(groupId){
+  const group = groupById(groupId);
+  const students = studentsInGroup(groupId);
+  const date = state.attDate;
+  const attData = state.attCache[date] || {};
+
+  const theadCols = `<th>ت</th><th>اسم الطالب</th><th>القسم</th><th>الصف</th>` +
+    LECTURES.map(l=>`<th>المحاضرة ${l}</th>`).join('');
+
+  const rows = students.map((s,i)=>{
+    let cells = '';
+    for(let lec=1; lec<=8; lec++){
+      const status = (attData[lec] && attData[lec][s.id]) || '';
+      const cls = status==='حاضر' ? 'st-present' : status==='غائب' ? 'st-absent' : status==='متأخر' ? 'st-late' : '';
+      cells += `<td class="${cls}">${status || '—'}</td>`;
+    }
+    return `<tr><td>${i+1}</td><td class="name-cell">${s.name}</td><td>${s.dept}</td><td>${s.grade}</td>${cells}</tr>`;
+  }).join('');
+
+  const printRoot = document.getElementById('printRoot');
+  printRoot.innerHTML = `
+    <div class="print-page">
+      <h1>إعدادية الحبانية المهنية</h1>
+      <h2>سجل الحضور والغياب — المجموعة ${group.letter}</h2>
+      <p>التاريخ: ${date} &nbsp;|&nbsp; وقت بدء المجموعة: ${group.startTime} &nbsp;|&nbsp; عدد الطلاب: ${students.length}</p>
+      <table class="print-table">
+        <thead><tr>${theadCols}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  document.body.classList.add('printing');
+  window.print();
+}
+window.addEventListener('afterprint', ()=>{
+  document.body.classList.remove('printing');
+  const pr = document.getElementById('printRoot');
+  if(pr) pr.innerHTML = '';
+});
+
+/* ============ الرسم (Render) ============ */
+function renderStats(){
+  const totalGroups = state.groups.length;
+  const totalStudents = state.students.length;
+  const today = state.attDate;
+  const data = state.attCache[today] || {};
+  let present=0, marked=0;
+  Object.values(data).forEach(lecMap=>{
+    Object.values(lecMap).forEach(status=>{
+      marked++;
+      if(status==='حاضر') present++;
+    });
+  });
+  const pct = marked ? Math.round((present/marked)*100) : null;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="num">${totalGroups}</div><div class="label">عدد المجموعات</div></div>
+    <div class="stat-card"><div class="num">${totalStudents}</div><div class="label">إجمالي الطلاب</div></div>
+    <div class="stat-card"><div class="num">${marked}</div><div class="label">تسجيلات حضور اليوم</div></div>
+    <div class="stat-card"><div class="num">${pct===null?'—':pct+'%'}</div><div class="label">نسبة الحضور اليوم</div></div>
+  `;
+}
+
+function renderTabs(){
+  const tabsEl = document.getElementById('tabs');
+  tabsEl.innerHTML = state.groups.map(g=>{
+    const count = studentsInGroup(g.id).length;
+    const active = g.id === state.activeTab ? 'active' : '';
+    return `<button class="tab-btn ${active}" data-group="${g.id}">مجموعة ${g.letter} <span class="tab-count">(${count})</span></button>`;
+  }).join('');
+  tabsEl.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.onclick = ()=>{ state.activeTab = btn.dataset.group; render(); };
+  });
+}
+
+async function renderContent(){
+  const el = document.getElementById('content');
+  const group = groupById(state.activeTab);
+  if(!group){ el.innerHTML = '<div class="empty">لا توجد مجموعات بعد.</div>'; return; }
+  const students = studentsInGroup(group.id);
+  const attData = await loadAttendance(state.attDate);
+  const lecMap = (attData[state.attLecture]) || {};
+
+  const lectureOptions = LECTURES.map((l,i)=>`<option value="${i+1}" ${state.attLecture===i+1?'selected':''}>المحاضرة ${l}</option>`).join('');
+
+  const rowsHtml = students.length ? students.map((s,i)=>{
+    const status = lecMap[s.id];
+    return `
+      <tr>
+        <td>${i+1}</td>
+        <td class="name-cell">${s.name}</td>
+        <td>${s.dept}</td>
+        <td>${s.grade}</td>
+        <td>
+          <div class="att-status-btns">
+            <button class="status-btn present ${status==='حاضر'?'on':''}" data-id="${s.id}" data-status="حاضر">حاضر</button>
+            <button class="status-btn absent ${status==='غائب'?'on':''}" data-id="${s.id}" data-status="غائب">غائب</button>
+            <button class="status-btn late ${status==='متأخر'?'on':''}" data-id="${s.id}" data-status="متأخر">متأخر</button>
+          </div>
+        </td>
+        <td><button class="btn btn-danger btn-sm" data-del="${s.id}">حذف</button></td>
+      </tr>`;
+  }).join('') : `<tr><td colspan="6" class="empty">لا يوجد طلاب في هذه المجموعة</td></tr>`;
+
+  el.innerHTML = `
+    <div class="card">
+      <h2>مجموعة ${group.letter}</h2>
+      <div class="sub">وقت البدء: ${group.startTime} &nbsp;•&nbsp; عدد الطلاب: ${students.length}</div>
+      <div class="row-actions">
+        <button class="btn btn-primary" id="btnAddStudent">+ إضافة طالب لهذه المجموعة</button>
+        <button class="btn btn-outline" id="btnMarkAll">✔ تسجيل حضور جميع الطلاب</button>
+        <button class="btn btn-outline" id="btnExportPdf">🖨 تصدير PDF (حضور وغياب)</button>
+      </div>
+
+      <div class="att-controls">
+        <div class="field">
+          <label>تاريخ الحضور</label>
+          <input type="date" id="attDateInput" value="${state.attDate}">
+        </div>
+        <div class="field">
+          <label>المحاضرة</label>
+          <select id="attLectureInput">${lectureOptions}</select>
+        </div>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--green)"></span> حاضر</span>
+        <span><span class="dot" style="background:var(--red)"></span> غائب</span>
+        <span><span class="dot" style="background:var(--amber)"></span> متأخر</span>
+        <span style="color:var(--text-dim)">(اضغط على نفس الحالة لإلغاء التحديد)</span>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>ت</th><th>اسم الطالب</th><th>القسم</th><th>الصف</th><th>تسجيل الحضور</th><th></th></tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('btnAddStudent').onclick = ()=>openAddStudentModal(group.id);
+  document.getElementById('btnMarkAll').onclick = ()=>markAllPresent(group.id);
+  document.getElementById('btnExportPdf').onclick = ()=>exportGroupPDF(group.id);
+  document.getElementById('attDateInput').onchange = async (e)=>{
+    state.attDate = e.target.value;
+    await loadAttendance(state.attDate);
+    renderContent();
+    renderStats();
+  };
+  document.getElementById('attLectureInput').onchange = (e)=>{
+    state.attLecture = parseInt(e.target.value,10);
+    renderContent();
+  };
+  el.querySelectorAll('.status-btn').forEach(btn=>{
+    btn.onclick = ()=> setAttendance(btn.dataset.id, btn.dataset.status);
+  });
+  el.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.onclick = ()=> deleteStudent(btn.dataset.del);
+  });
+}
+
+function render(){
+  renderStats();
+  renderTabs();
+  renderContent();
+}
+
+/* ============ بدء التشغيل ============ */
+(async function init(){
+  await loadRoster();
+  if(state.groups.length){ state.activeTab = state.groups[0].id; }
+  await loadAttendance(state.attDate);
+  render();
+})();
+
+/* ============ تسجيل Service Worker للعمل بدون إنترنت ============ */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{ /* تجاهل بيئات لا تدعم SW مثل file:// */ });
+  });
+}
+</script>
+</body>
+</html>
