@@ -218,6 +218,36 @@
   .print-table td.st-present{background:#E6F4E8;color:#1F7A2E;font-weight:700;}
   .print-table td.st-absent{background:#FBEAE8;color:#C0392B;font-weight:700;}
   .print-table td.st-late{background:#FCF1DD;color:#B9770E;font-weight:700;}
+
+  /* ===== شريط البحث العام ===== */
+  .search-bar-wrap{position:relative;margin-bottom:18px;}
+  #globalSearchInput{
+    width:100%;
+    font-family:'Cairo',sans-serif;
+    font-size:14px;
+    padding:12px 16px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:#fff;
+    color:var(--text);
+  }
+  #globalSearchInput:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(31,78,121,0.12);}
+  .search-results{
+    position:absolute; top:calc(100% + 6px); right:0; left:0;
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.15);
+    max-height:380px; overflow-y:auto; z-index:40; display:none;
+  }
+  .search-context{padding:8px 14px;font-size:11.5px;color:var(--navy);background:var(--navy-tint);border-bottom:1px solid var(--border);font-weight:700;}
+  .search-row{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px; padding:10px 14px; border-bottom:1px solid var(--border);
+  }
+  .search-row:last-child{border-bottom:none;}
+  .search-row-name{font-weight:700; font-size:13.5px;}
+  .search-row-meta{font-size:11.5px; color:var(--text-dim); margin-top:2px;}
+  .search-empty{padding:16px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .tab-btn.add-group-btn{border-style:dashed;color:var(--navy);font-weight:800;}
 </style>
 </head>
 <body>
@@ -226,6 +256,11 @@
     <h1>إعدادية الحبانية المهنية</h1>
     <p>نظام إدارة طلاب التدريب الصيفي — المجموعات، الحضور، والغياب</p>
   </header>
+
+  <div class="search-bar-wrap">
+    <input type="text" id="globalSearchInput" placeholder="🔍 ابحث عن طالب بالاسم لتسجيل حضوره مباشرة من أي مجموعة...">
+    <div class="search-results" id="searchResults"></div>
+  </div>
 
   <div class="stats" id="stats"></div>
   <div class="tabs" id="tabs"></div>
@@ -1518,14 +1553,22 @@ const LECTURES = ["الأولى","الثانية","الثالثة","الرابع
 const DEPTS = ["حاسبات","نفط","بناء"];
 const GRADES = ["الرابع","الخامس"];
 
+/* ============ أدوات التاريخ ============ */
+function todayLocalISO(){
+  const d = new Date();
+  const tzOffsetMs = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffsetMs).toISOString().slice(0,10);
+}
+
 /* ============ الحالة ============ */
 let state = {
   students: [],
   groups: [],
   activeTab: null,
-  attDate: new Date().toISOString().slice(0,10),
+  attDate: todayLocalISO(),
   attLecture: 1,
-  attCache: {} // { [date]: { [lecture]: { [studentId]: status } } }
+  attCache: {}, // { [date]: { [lecture]: { [studentId]: status } } }
+  searchQuery: ''
 };
 
 /* ============ أدوات التخزين ============ */
@@ -1574,6 +1617,28 @@ async function saveAttendance(date){
   try{
     await window.storage.set('attendance:'+date, JSON.stringify(state.attCache[date] || {}));
   }catch(e){ showToast('تعذر حفظ الحضور'); }
+}
+
+/* ============ حفظ آخر تاريخ/محاضرة/تبويب مفتوح (لضمان بقاء الحضور ظاهراً بعد إعادة فتح التطبيق) ============ */
+async function loadUiState(){
+  try{
+    const res = await window.storage.get('ui-state');
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      if(parsed.attDate) state.attDate = parsed.attDate;
+      if(parsed.attLecture) state.attLecture = parsed.attLecture;
+      if(parsed.activeTab) state.activeTab = parsed.activeTab;
+    }
+  }catch(e){ /* أول تشغيل، لا توجد حالة محفوظة بعد */ }
+}
+async function saveUiState(){
+  try{
+    await window.storage.set('ui-state', JSON.stringify({
+      attDate: state.attDate,
+      attLecture: state.attLecture,
+      activeTab: state.activeTab
+    }));
+  }catch(e){}
 }
 
 /* ============ أدوات مساعدة ============ */
@@ -1639,6 +1704,150 @@ function openAddStudentModal(defaultGroupId){
     await saveRoster();
     root.innerHTML = '';
     showToast('تمت إضافة الطالب بنجاح');
+    render();
+  };
+}
+
+/* ============ تعديل طالب ============ */
+function openEditStudentModal(studentId){
+  const st = state.students.find(s=>s.id===studentId);
+  if(!st) return;
+  const root = document.getElementById('modalRoot');
+  const deptOptions = DEPTS.map(d=>`<option value="${d}" ${st.dept===d?'selected':''}>${d}</option>`).join('');
+  const gradeOptions = GRADES.map(g=>`<option value="${g}" ${st.grade===g?'selected':''}>${g}</option>`).join('');
+  const groupOptions = state.groups.map(g=>`<option value="${g.id}" ${g.id===st.groupId?'selected':''}>مجموعة ${g.letter} — ${g.startTime}</option>`).join('');
+  root.innerHTML = `
+    <div class="modal-overlay" id="ovEdit">
+      <div class="modal">
+        <h3>تعديل بيانات الطالب</h3>
+        <div class="field"><label>اسم الطالب</label><input id="eName" type="text" value="${st.name}"></div>
+        <div class="field"><label>القسم</label><select id="eDept">${deptOptions}</select></div>
+        <div class="field"><label>الصف</label><select id="eGrade">${gradeOptions}</select></div>
+        <div class="field"><label>المجموعة</label><select id="eGroup">${groupOptions}</select></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="editCancel">إلغاء</button>
+          <button class="btn btn-primary" id="editOk">حفظ التعديلات</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('editCancel').onclick = ()=>{ root.innerHTML=''; };
+  document.getElementById('ovEdit').onclick = (e)=>{ if(e.target.id==='ovEdit') root.innerHTML=''; };
+  document.getElementById('editOk').onclick = async ()=>{
+    const name = document.getElementById('eName').value.trim();
+    if(!name){ showToast('الرجاء إدخال اسم الطالب'); return; }
+    st.name = name;
+    st.dept = document.getElementById('eDept').value;
+    st.grade = document.getElementById('eGrade').value;
+    st.groupId = document.getElementById('eGroup').value;
+    await saveRoster();
+    root.innerHTML = '';
+    showToast('تم حفظ تعديلات الطالب');
+    render();
+  };
+}
+
+/* ============ نقل طالب بين المجموعات ============ */
+function openTransferModal(studentId){
+  const st = state.students.find(s=>s.id===studentId);
+  if(!st) return;
+  const currentGroup = groupById(st.groupId);
+  const otherGroups = state.groups.filter(g=>g.id !== st.groupId);
+  if(!otherGroups.length){ showToast('لا توجد مجموعة أخرى لنقل الطالب إليها'); return; }
+  const root = document.getElementById('modalRoot');
+  const groupOptions = otherGroups.map(g=>`<option value="${g.id}">مجموعة ${g.letter} — ${g.startTime} (${studentsInGroup(g.id).length} طالب)</option>`).join('');
+  root.innerHTML = `
+    <div class="modal-overlay" id="ovTransfer">
+      <div class="modal">
+        <h3>نقل طالب بين المجموعات</h3>
+        <p style="font-size:13.5px;color:var(--text-dim);line-height:1.7;margin-top:-6px;">
+          الطالب <b>${st.name}</b> — حالياً في مجموعة <b>${currentGroup ? currentGroup.letter : '-'}</b>
+        </p>
+        <div class="field"><label>نقل إلى مجموعة</label><select id="tGroup">${groupOptions}</select></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="trCancel">إلغاء</button>
+          <button class="btn btn-primary" id="trOk">تأكيد النقل</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('trCancel').onclick = ()=>{ root.innerHTML=''; };
+  document.getElementById('ovTransfer').onclick = (e)=>{ if(e.target.id==='ovTransfer') root.innerHTML=''; };
+  document.getElementById('trOk').onclick = async ()=>{
+    const targetId = document.getElementById('tGroup').value;
+    const targetGroup = groupById(targetId);
+    st.groupId = targetId;
+    await saveRoster();
+    root.innerHTML = '';
+    showToast(`تم نقل ${st.name} إلى مجموعة ${targetGroup.letter}`);
+    render();
+  };
+}
+
+/* ============ إضافة مجموعة جديدة ============ */
+function parseArabicTime(str){
+  const m = (str||'').match(/(\d+):(\d+)\s*(صباحاً|مساءً)/);
+  if(!m) return {h:9, min:0};
+  let h = parseInt(m[1],10), min = parseInt(m[2],10);
+  const period = m[3];
+  if(period === 'مساءً' && h !== 12) h += 12;
+  if(period === 'صباحاً' && h === 12) h = 0;
+  return {h, min};
+}
+function addMinutesToTime(h, min, delta){
+  let total = ((h*60+min+delta) % 1440 + 1440) % 1440;
+  return { h: Math.floor(total/60), min: total%60 };
+}
+function to24hInputValue(h, min){
+  return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+}
+function formatArabicTime(h, min){
+  const period = h >= 12 ? 'مساءً' : 'صباحاً';
+  let h12 = h % 12; if(h12===0) h12 = 12;
+  return `${h12}:${String(min).padStart(2,'0')} ${period}`;
+}
+function nextGroupLetter(){
+  const used = new Set(state.groups.map(g=>g.letter));
+  for(let i=0;i<26;i++){
+    const letter = String.fromCharCode(65+i);
+    if(!used.has(letter)) return letter;
+  }
+  return 'G' + (state.groups.length+1);
+}
+
+function openAddGroupModal(){
+  const root = document.getElementById('modalRoot');
+  const nextLetter = nextGroupLetter();
+  let suggestedTime = {h:9, min:0};
+  if(state.groups.length){
+    const last = state.groups[state.groups.length-1];
+    const parsed = parseArabicTime(last.startTime);
+    suggestedTime = addMinutesToTime(parsed.h, parsed.min, 20);
+  }
+  root.innerHTML = `
+    <div class="modal-overlay" id="ovAddGroup">
+      <div class="modal">
+        <h3>إضافة مجموعة جديدة</h3>
+        <div class="field"><label>حرف المجموعة</label><input id="gLetter" type="text" value="${nextLetter}" maxlength="3"></div>
+        <div class="field"><label>وقت بدء المحاضرة</label><input id="gTime" type="time" value="${to24hInputValue(suggestedTime.h, suggestedTime.min)}"></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="agCancel">إلغاء</button>
+          <button class="btn btn-primary" id="agOk">إضافة المجموعة</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('agCancel').onclick = ()=>{ root.innerHTML=''; };
+  document.getElementById('ovAddGroup').onclick = (e)=>{ if(e.target.id==='ovAddGroup') root.innerHTML=''; };
+  document.getElementById('agOk').onclick = async ()=>{
+    const letter = document.getElementById('gLetter').value.trim();
+    if(!letter){ showToast('الرجاء إدخال حرف أو اسم للمجموعة'); return; }
+    if(state.groups.some(g=>g.letter===letter)){ showToast('هذا الاسم مستخدم لمجموعة أخرى'); return; }
+    const timeVal = document.getElementById('gTime').value; // "HH:MM"
+    const [hh, mm] = timeVal.split(':').map(n=>parseInt(n,10));
+    const newGroup = { id: uid(), letter, startTime: formatArabicTime(hh, mm) };
+    state.groups.push(newGroup);
+    await saveRoster();
+    root.innerHTML = '';
+    state.activeTab = newGroup.id;
+    showToast('تمت إضافة المجموعة بنجاح');
     render();
   };
 }
@@ -1790,6 +1999,64 @@ function exportGroupSchedule(groupId){
   generatePdfFromHtml(html, `جدول_توقيت_مجموعة_${group.letter}.pdf`, 'portrait');
 }
 
+/* ============ البحث العام عن طالب ============ */
+function setupSearchBar(){
+  const input = document.getElementById('globalSearchInput');
+  if(!input) return;
+  input.addEventListener('input', (e)=> renderSearchResults(e.target.value));
+  input.addEventListener('focus', (e)=> { if(e.target.value.trim()) renderSearchResults(e.target.value); });
+  document.addEventListener('click', (e)=>{
+    const wrap = input.closest('.search-bar-wrap');
+    if(wrap && !wrap.contains(e.target)){
+      document.getElementById('searchResults').style.display = 'none';
+    }
+  });
+}
+
+function renderSearchResults(query){
+  const box = document.getElementById('searchResults');
+  const q = (query || '').trim();
+  if(!q){ box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  const matches = state.students.filter(s => s.name.includes(q)).slice(0, 20);
+  const contextLine = `<div class="search-context">سيُسجَّل الحضور بتاريخ ${state.attDate} — المحاضرة ${LECTURES[state.attLecture-1]}</div>`;
+
+  if(!matches.length){
+    box.innerHTML = contextLine + `<div class="search-empty">لا يوجد طالب بهذا الاسم</div>`;
+    box.style.display = 'block';
+    return;
+  }
+
+  const attData = state.attCache[state.attDate] || {};
+  const lecMap = attData[state.attLecture] || {};
+
+  const rows = matches.map(s=>{
+    const g = groupById(s.groupId);
+    const status = lecMap[s.id];
+    return `
+      <div class="search-row">
+        <div>
+          <div class="search-row-name">${s.name}</div>
+          <div class="search-row-meta">${s.dept} • ${s.grade} • مجموعة ${g ? g.letter : '-'}</div>
+        </div>
+        <div class="att-status-btns">
+          <button class="status-btn present ${status==='حاضر'?'on':''}" data-sid="${s.id}" data-sstatus="حاضر">حاضر</button>
+          <button class="status-btn absent ${status==='غائب'?'on':''}" data-sid="${s.id}" data-sstatus="غائب">غائب</button>
+          <button class="status-btn late ${status==='متأخر'?'on':''}" data-sid="${s.id}" data-sstatus="متأخر">متأخر</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  box.innerHTML = contextLine + rows;
+  box.style.display = 'block';
+  box.querySelectorAll('[data-sid]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      await setAttendance(btn.dataset.sid, btn.dataset.sstatus);
+      renderSearchResults(document.getElementById('globalSearchInput').value);
+    };
+  });
+}
+
 /* ============ الرسم (Render) ============ */
 function renderStats(){
   const totalGroups = state.groups.length;
@@ -1814,14 +2081,16 @@ function renderStats(){
 
 function renderTabs(){
   const tabsEl = document.getElementById('tabs');
-  tabsEl.innerHTML = state.groups.map(g=>{
+  const tabsHtml = state.groups.map(g=>{
     const count = studentsInGroup(g.id).length;
     const active = g.id === state.activeTab ? 'active' : '';
     return `<button class="tab-btn ${active}" data-group="${g.id}">مجموعة ${g.letter} <span class="tab-count">(${count})</span></button>`;
   }).join('');
-  tabsEl.querySelectorAll('.tab-btn').forEach(btn=>{
-    btn.onclick = ()=>{ state.activeTab = btn.dataset.group; render(); };
+  tabsEl.innerHTML = tabsHtml + `<button class="tab-btn add-group-btn" id="btnAddGroup">+ مجموعة جديدة</button>`;
+  tabsEl.querySelectorAll('.tab-btn[data-group]').forEach(btn=>{
+    btn.onclick = ()=>{ state.activeTab = btn.dataset.group; saveUiState(); render(); };
   });
+  document.getElementById('btnAddGroup').onclick = openAddGroupModal;
 }
 
 async function renderContent(){
@@ -1849,7 +2118,13 @@ async function renderContent(){
             <button class="status-btn late ${status==='متأخر'?'on':''}" data-id="${s.id}" data-status="متأخر">متأخر</button>
           </div>
         </td>
-        <td><button class="btn btn-danger btn-sm" data-del="${s.id}">حذف</button></td>
+        <td>
+          <div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" data-edit="${s.id}">تعديل</button>
+            <button class="btn btn-outline btn-sm" data-transfer="${s.id}">نقل</button>
+            <button class="btn btn-danger btn-sm" data-del="${s.id}">حذف</button>
+          </div>
+        </td>
       </tr>`;
   }).join('') : `<tr><td colspan="6" class="empty">لا يوجد طلاب في هذه المجموعة</td></tr>`;
 
@@ -1899,15 +2174,23 @@ async function renderContent(){
   document.getElementById('attDateInput').onchange = async (e)=>{
     state.attDate = e.target.value;
     await loadAttendance(state.attDate);
+    await saveUiState();
     renderContent();
     renderStats();
   };
-  document.getElementById('attLectureInput').onchange = (e)=>{
+  document.getElementById('attLectureInput').onchange = async (e)=>{
     state.attLecture = parseInt(e.target.value,10);
+    await saveUiState();
     renderContent();
   };
   el.querySelectorAll('.status-btn').forEach(btn=>{
     btn.onclick = ()=> setAttendance(btn.dataset.id, btn.dataset.status);
+  });
+  el.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.onclick = ()=> openEditStudentModal(btn.dataset.edit);
+  });
+  el.querySelectorAll('[data-transfer]').forEach(btn=>{
+    btn.onclick = ()=> openTransferModal(btn.dataset.transfer);
   });
   el.querySelectorAll('[data-del]').forEach(btn=>{
     btn.onclick = ()=> deleteStudent(btn.dataset.del);
@@ -1922,10 +2205,18 @@ function render(){
 
 /* ============ بدء التشغيل ============ */
 (async function init(){
+  // نطلب من المتصفح عدم حذف بيانات هذا الموقع تلقائياً عند ضغط التخزين
+  if(navigator.storage && navigator.storage.persist){
+    try{ await navigator.storage.persist(); }catch(e){}
+  }
   await loadRoster();
-  if(state.groups.length){ state.activeTab = state.groups[0].id; }
+  await loadUiState(); // استعادة آخر تاريخ/محاضرة/تبويب كان مفتوحاً
+  if(!state.activeTab || !groupById(state.activeTab)){
+    state.activeTab = state.groups.length ? state.groups[0].id : null;
+  }
   await loadAttendance(state.attDate);
   render();
+  setupSearchBar();
 })();
 
 /* ============ تسجيل Service Worker للعمل بدون إنترنت ============ */
