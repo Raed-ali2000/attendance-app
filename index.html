@@ -248,6 +248,14 @@
   .search-row-meta{font-size:11.5px; color:var(--text-dim); margin-top:2px;}
   .search-empty{padding:16px; text-align:center; color:var(--text-dim); font-size:13px;}
   .tab-btn.add-group-btn{border-style:dashed;color:var(--navy);font-weight:800;}
+
+  .bulk-bar{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    background:var(--navy-tint); border:1px solid var(--navy);
+    border-radius:8px; padding:9px 14px; margin-bottom:14px;
+    font-size:13px; font-weight:700; color:var(--navy);
+  }
+  input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:var(--navy);}
 </style>
 </head>
 <body>
@@ -1568,7 +1576,8 @@ let state = {
   attDate: todayLocalISO(),
   attLecture: 1,
   attCache: {}, // { [date]: { [lecture]: { [studentId]: status } } }
-  searchQuery: ''
+  searchQuery: '',
+  selectedStudents: new Set()
 };
 
 /* ============ أدوات التخزين ============ */
@@ -1704,7 +1713,7 @@ function openAddStudentModal(defaultGroupId){
     await saveRoster();
     root.innerHTML = '';
     showToast('تمت إضافة الطالب بنجاح');
-    render();
+    if(groupId === state.activeTab){ refreshCurrentGroupView(); } else { render(); }
   };
 }
 
@@ -1735,14 +1744,16 @@ function openEditStudentModal(studentId){
   document.getElementById('editOk').onclick = async ()=>{
     const name = document.getElementById('eName').value.trim();
     if(!name){ showToast('الرجاء إدخال اسم الطالب'); return; }
+    const newGroupId = document.getElementById('eGroup').value;
+    const groupChanged = newGroupId !== st.groupId;
     st.name = name;
     st.dept = document.getElementById('eDept').value;
     st.grade = document.getElementById('eGrade').value;
-    st.groupId = document.getElementById('eGroup').value;
+    st.groupId = newGroupId;
     await saveRoster();
     root.innerHTML = '';
     showToast('تم حفظ تعديلات الطالب');
-    render();
+    if(groupChanged){ render(); } else { refreshCurrentGroupView(); }
   };
 }
 
@@ -1775,9 +1786,51 @@ function openTransferModal(studentId){
     const targetId = document.getElementById('tGroup').value;
     const targetGroup = groupById(targetId);
     st.groupId = targetId;
+    state.selectedStudents.delete(studentId);
     await saveRoster();
     root.innerHTML = '';
     showToast(`تم نقل ${st.name} إلى مجموعة ${targetGroup.letter}`);
+    render();
+  };
+}
+
+/* ============ نقل عدة طلاب محددين دفعة واحدة ============ */
+function openBulkTransferModal(){
+  const ids = Array.from(state.selectedStudents);
+  if(!ids.length) return;
+  const currentGroupId = state.activeTab;
+  const otherGroups = state.groups.filter(g=>g.id !== currentGroupId);
+  if(!otherGroups.length){ showToast('لا توجد مجموعة أخرى لنقل الطلاب إليها'); return; }
+  const root = document.getElementById('modalRoot');
+  const groupOptions = otherGroups.map(g=>`<option value="${g.id}">مجموعة ${g.letter} — ${g.startTime} (${studentsInGroup(g.id).length} طالب)</option>`).join('');
+  root.innerHTML = `
+    <div class="modal-overlay" id="ovBulkTransfer">
+      <div class="modal">
+        <h3>نقل ${ids.length} طالب محدد</h3>
+        <p style="font-size:13.5px;color:var(--text-dim);line-height:1.7;margin-top:-6px;">
+          سيتم نقل الطلاب الـ<b>${ids.length}</b> المحددين إلى المجموعة التي تختارها دفعة واحدة.
+        </p>
+        <div class="field"><label>نقل إلى مجموعة</label><select id="btGroup">${groupOptions}</select></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="btCancel">إلغاء</button>
+          <button class="btn btn-primary" id="btOk">تأكيد نقل ${ids.length} طالب</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('btCancel').onclick = ()=>{ root.innerHTML=''; };
+  document.getElementById('ovBulkTransfer').onclick = (e)=>{ if(e.target.id==='ovBulkTransfer') root.innerHTML=''; };
+  document.getElementById('btOk').onclick = async ()=>{
+    const targetId = document.getElementById('btGroup').value;
+    const targetGroup = groupById(targetId);
+    let moved = 0;
+    ids.forEach(id=>{
+      const st = state.students.find(s=>s.id===id);
+      if(st){ st.groupId = targetId; moved++; }
+    });
+    state.selectedStudents.clear();
+    await saveRoster();
+    root.innerHTML = '';
+    showToast(`تم نقل ${moved} طالب إلى مجموعة ${targetGroup.letter}`);
     render();
   };
 }
@@ -1852,19 +1905,42 @@ function openAddGroupModal(){
   };
 }
 
+/* ============ حفظ/استعادة موضع التمرير عند تحديث الجدول ============ */
+async function refreshCurrentGroupView(){
+  const scrollBox = document.querySelector('.table-scroll');
+  const prevScrollTop = scrollBox ? scrollBox.scrollTop : 0;
+  renderStats();
+  renderTabs();
+  await renderContent();
+  const newScrollBox = document.querySelector('.table-scroll');
+  if(newScrollBox) newScrollBox.scrollTop = prevScrollTop;
+}
+
 /* ============ حذف طالب ============ */
 function deleteStudent(studentId){
   const st = state.students.find(s=>s.id===studentId);
   if(!st) return;
   confirmModal('حذف طالب', `هل أنت متأكد من حذف الطالب <b>${st.name}</b>؟ لا يمكن التراجع عن هذه العملية.`, async ()=>{
     state.students = state.students.filter(s=>s.id!==studentId);
+    state.selectedStudents.delete(studentId);
     await saveRoster();
     showToast('تم حذف الطالب');
-    render();
+    refreshCurrentGroupView();
   });
 }
 
-/* ============ الحضور ============ */
+/* ============ الحضور (تحديث مباشر في الصفحة بدون إعادة رسم الجدول، حتى لا يقفز التمرير لأعلى) ============ */
+function updateAttendanceButtonsInDOM(studentId){
+  const date = state.attDate, lec = state.attLecture;
+  const status = (state.attCache[date] && state.attCache[date][lec] && state.attCache[date][lec][studentId]) || null;
+  document.querySelectorAll(`.status-btn[data-id="${studentId}"]`).forEach(btn=>{
+    btn.classList.toggle('on', btn.dataset.status === status);
+  });
+  document.querySelectorAll(`.status-btn[data-sid="${studentId}"]`).forEach(btn=>{
+    btn.classList.toggle('on', btn.dataset.sstatus === status);
+  });
+}
+
 async function setAttendance(studentId, status){
   const date = state.attDate, lec = state.attLecture;
   const data = await loadAttendance(date);
@@ -1876,7 +1952,7 @@ async function setAttendance(studentId, status){
   }
   state.attCache[date] = data;
   await saveAttendance(date);
-  renderContent();
+  updateAttendanceButtonsInDOM(studentId);
   renderStats();
 }
 
@@ -1891,14 +1967,48 @@ function markAllPresent(groupId){
       const date = state.attDate, lec = state.attLecture;
       const data = await loadAttendance(date);
       if(!data[lec]) data[lec] = {};
-      studentsInGroup(groupId).forEach(s=>{ data[lec][s.id] = 'حاضر'; });
+      const groupStudents = studentsInGroup(groupId);
+      groupStudents.forEach(s=>{ data[lec][s.id] = 'حاضر'; });
       state.attCache[date] = data;
       await saveAttendance(date);
-      showToast('تم تسجيل حضور جميع الطلاب');
-      renderContent();
+      groupStudents.forEach(s=> updateAttendanceButtonsInDOM(s.id));
       renderStats();
+      showToast('تم تسجيل حضور جميع الطلاب');
     }
   );
+}
+
+/* ============ حفظ المحاضرة الحالية والانتقال للتالية (مع تسجيل الغائبين تلقائياً) ============ */
+async function finishLectureAndAdvance(groupId){
+  const group = groupById(groupId);
+  const date = state.attDate, lec = state.attLecture;
+  const data = await loadAttendance(date);
+  const lecMap = data[lec] || {};
+  const groupStudents = studentsInGroup(groupId);
+  const unmarked = groupStudents.filter(s => !lecMap[s.id]);
+  const lectureLabel = LECTURES[lec-1];
+  const isLast = lec >= LECTURES.length;
+  const nextLabel = isLast ? null : LECTURES[lec];
+
+  const message = (unmarked.length
+    ? `سيتم تسجيل <b>${unmarked.length}</b> طالب لم يُسجَّل حضورهم كـ <b>غائب</b> تلقائياً في المحاضرة ${lectureLabel}. `
+    : `كل الطلاب مسجَّلون بالفعل في المحاضرة ${lectureLabel}. `)
+    + (isLast ? 'هذه آخر محاضرة في القائمة.' : `بعدها سينتقل التطبيق تلقائياً إلى المحاضرة ${nextLabel}.`);
+
+  confirmModal('حفظ المحاضرة والانتقال للتالية', message, async ()=>{
+    if(!data[lec]) data[lec] = {};
+    unmarked.forEach(s=>{ data[lec][s.id] = 'غائب'; });
+    state.attCache[date] = data;
+    await saveAttendance(date);
+
+    if(!isLast){ state.attLecture += 1; }
+    await saveUiState();
+
+    showToast(isLast
+      ? `تم حفظ المحاضرة ${lectureLabel} (آخر محاضرة)`
+      : `تم الحفظ — الانتقال إلى المحاضرة ${nextLabel}`);
+    refreshCurrentGroupView();
+  });
 }
 
 /* ============ محرك توليد PDF حقيقي (يعمل على الموبايل والكمبيوتر) ============ */
@@ -2042,7 +2152,6 @@ function renderSearchResults(query){
         <div class="att-status-btns">
           <button class="status-btn present ${status==='حاضر'?'on':''}" data-sid="${s.id}" data-sstatus="حاضر">حاضر</button>
           <button class="status-btn absent ${status==='غائب'?'on':''}" data-sid="${s.id}" data-sstatus="غائب">غائب</button>
-          <button class="status-btn late ${status==='متأخر'?'on':''}" data-sid="${s.id}" data-sstatus="متأخر">متأخر</button>
         </div>
       </div>`;
   }).join('');
@@ -2088,7 +2197,7 @@ function renderTabs(){
   }).join('');
   tabsEl.innerHTML = tabsHtml + `<button class="tab-btn add-group-btn" id="btnAddGroup">+ مجموعة جديدة</button>`;
   tabsEl.querySelectorAll('.tab-btn[data-group]').forEach(btn=>{
-    btn.onclick = ()=>{ state.activeTab = btn.dataset.group; saveUiState(); render(); };
+    btn.onclick = ()=>{ state.activeTab = btn.dataset.group; state.selectedStudents.clear(); saveUiState(); render(); };
   });
   document.getElementById('btnAddGroup').onclick = openAddGroupModal;
 }
@@ -2105,8 +2214,10 @@ async function renderContent(){
 
   const rowsHtml = students.length ? students.map((s,i)=>{
     const status = lecMap[s.id];
+    const checked = state.selectedStudents.has(s.id) ? 'checked' : '';
     return `
       <tr>
+        <td><input type="checkbox" class="row-check" data-sid="${s.id}" ${checked}></td>
         <td>${i+1}</td>
         <td class="name-cell">${s.name}</td>
         <td>${s.dept}</td>
@@ -2115,7 +2226,6 @@ async function renderContent(){
           <div class="att-status-btns">
             <button class="status-btn present ${status==='حاضر'?'on':''}" data-id="${s.id}" data-status="حاضر">حاضر</button>
             <button class="status-btn absent ${status==='غائب'?'on':''}" data-id="${s.id}" data-status="غائب">غائب</button>
-            <button class="status-btn late ${status==='متأخر'?'on':''}" data-id="${s.id}" data-status="متأخر">متأخر</button>
           </div>
         </td>
         <td>
@@ -2126,7 +2236,10 @@ async function renderContent(){
           </div>
         </td>
       </tr>`;
-  }).join('') : `<tr><td colspan="6" class="empty">لا يوجد طلاب في هذه المجموعة</td></tr>`;
+  }).join('') : `<tr><td colspan="7" class="empty">لا يوجد طلاب في هذه المجموعة</td></tr>`;
+
+  const selectedCount = students.filter(s=>state.selectedStudents.has(s.id)).length;
+  const allChecked = students.length && selectedCount === students.length;
 
   el.innerHTML = `
     <div class="card">
@@ -2139,6 +2252,13 @@ async function renderContent(){
         <button class="btn btn-outline" id="btnExportSchedule">📋 تصدير جدول التوقيت للطلاب</button>
       </div>
 
+      ${selectedCount > 0 ? `
+      <div class="bulk-bar">
+        <span>✓ تم تحديد ${selectedCount} طالب</span>
+        <button class="btn btn-primary btn-sm" id="btnBulkTransfer">نقل المحددين إلى مجموعة أخرى</button>
+        <button class="btn btn-outline btn-sm" id="btnClearSelection">إلغاء التحديد</button>
+      </div>` : ''}
+
       <div class="att-controls">
         <div class="field">
           <label>تاريخ الحضور</label>
@@ -2148,18 +2268,26 @@ async function renderContent(){
           <label>المحاضرة</label>
           <select id="attLectureInput">${lectureOptions}</select>
         </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" id="btnFinishLecture">💾 حفظ والانتقال للمحاضرة التالية</button>
+        </div>
       </div>
       <div class="legend">
         <span><span class="dot" style="background:var(--green)"></span> حاضر</span>
         <span><span class="dot" style="background:var(--red)"></span> غائب</span>
-        <span><span class="dot" style="background:var(--amber)"></span> متأخر</span>
         <span style="color:var(--text-dim)">(اضغط على نفس الحالة لإلغاء التحديد)</span>
+        <span style="color:var(--text-dim)">• حدد عدة طلاب بواسطة المربعات لنقلهم دفعة واحدة</span>
+        <span style="color:var(--text-dim)">• زر "حفظ والانتقال" يسجّل الباقين تلقائياً كغائب</span>
       </div>
 
       <div class="table-scroll">
         <table>
           <thead>
-            <tr><th>ت</th><th>اسم الطالب</th><th>القسم</th><th>الصف</th><th>تسجيل الحضور</th><th></th></tr>
+            <tr>
+              <th><input type="checkbox" id="selectAllCheckbox" ${allChecked?'checked':''}></th>
+              <th>ت</th><th>اسم الطالب</th><th>القسم</th><th>الصف</th><th>تسجيل الحضور</th><th></th>
+            </tr>
           </thead>
           <tbody>${rowsHtml}</tbody>
         </table>
@@ -2171,6 +2299,16 @@ async function renderContent(){
   document.getElementById('btnMarkAll').onclick = ()=>markAllPresent(group.id);
   document.getElementById('btnExportPdf').onclick = ()=>exportGroupPDF(group.id);
   document.getElementById('btnExportSchedule').onclick = ()=>exportGroupSchedule(group.id);
+  document.getElementById('btnFinishLecture').onclick = ()=>finishLectureAndAdvance(group.id);
+  const bulkTransferBtn = document.getElementById('btnBulkTransfer');
+  if(bulkTransferBtn) bulkTransferBtn.onclick = openBulkTransferModal;
+  const clearSelBtn = document.getElementById('btnClearSelection');
+  if(clearSelBtn) clearSelBtn.onclick = ()=>{ state.selectedStudents.clear(); refreshCurrentGroupView(); };
+  document.getElementById('selectAllCheckbox').onchange = (e)=>{
+    if(e.target.checked){ students.forEach(s=>state.selectedStudents.add(s.id)); }
+    else{ students.forEach(s=>state.selectedStudents.delete(s.id)); }
+    refreshCurrentGroupView();
+  };
   document.getElementById('attDateInput').onchange = async (e)=>{
     state.attDate = e.target.value;
     await loadAttendance(state.attDate);
@@ -2183,6 +2321,13 @@ async function renderContent(){
     await saveUiState();
     renderContent();
   };
+  el.querySelectorAll('.row-check').forEach(cb=>{
+    cb.onchange = ()=>{
+      if(cb.checked) state.selectedStudents.add(cb.dataset.sid);
+      else state.selectedStudents.delete(cb.dataset.sid);
+      refreshCurrentGroupView();
+    };
+  });
   el.querySelectorAll('.status-btn').forEach(btn=>{
     btn.onclick = ()=> setAttendance(btn.dataset.id, btn.dataset.status);
   });
